@@ -1,5 +1,7 @@
 # Runs a terraform job that acts as a circuit breaker for an app receiving
 # unusual (and expensive) traffic.
+version: 0.2
+
 phases:
   install:
     runtime-versions:
