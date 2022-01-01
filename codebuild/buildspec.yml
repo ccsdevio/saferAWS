@@ -7,9 +7,11 @@ phases:
     runtime-versions:
       python: 3.7
     commands:
-      - "curl -fsSL https://apt.releases.hashicorp.com/gpg | apt-key add -"
-      - "apt-add-repository 'deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main'"
-      - "apt-get update && sudo apt-get install terraform"
+# Following is from https://medium.com/airwalk/using-the-aws-developer-tools-to-deploy-terraform-259e71486b5b
+      - "cd /usr/bin"
+# TODO: change magic hardcoded version numbers to ${TF_VERSION}
+      - "curl -s -qL -o terraform.zip https://releases.hashicorp.com/terraform/1.1.2/terraform_1.1.2_linux_amd64.zip"
+      - "unzip -o terraform.zip"
 
   build:
     commands:
