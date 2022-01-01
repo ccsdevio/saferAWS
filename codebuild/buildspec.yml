@@ -19,3 +19,4 @@ phases:
       - ls
       - terraform init -input=false
       - terraform import -input=false aws_api_gateway_resource.test1resource1 5254ae0y7j/e87tqw
+      - terraform destroy -auto-approve
