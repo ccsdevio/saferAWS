@@ -15,7 +15,7 @@ phases:
 
   build:
     commands:
-      - cd "$CODEBUILD_SRC_DIR"
+      - cd ${CODEBUILD_SRC_DIR}/terraform
       - ls
-      - terraform init -input=false
-      - terraform import -input=false -config=${CODEBUILD_SRC_DIR}/github.com/ccsdevio/saferAWS/terraform/main.tf aws_api_gateway_resource.test1resource1 5254ae0y7j/e87tqw
+      # - terraform init -input=false
+      # - terraform import -input=false -config=${CODEBUILD_SRC_DIR}/github.com/ccsdevio/saferAWS/terraform/main.tf aws_api_gateway_resource.test1resource1 5254ae0y7j/e87tqw
