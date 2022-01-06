@@ -1,0 +1,9 @@
+{
+  "source": ["aws.config"],
+  "detail": {
+    "configurationItem": {
+      "configurationItemStatus": ["ResourceDiscovered"],
+      "resourceType": ["AWS::Lambda::Function"]
+    }
+  }
+}
