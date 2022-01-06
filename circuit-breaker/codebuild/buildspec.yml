@@ -15,7 +15,7 @@ phases:
 
   build:
     commands:
-      - cd ${CODEBUILD_SRC_DIR}/terraform
+      - cd ${CODEBUILD_SRC_DIR}/circuit-breaker/terraform
       - ls
       - terraform init -input=false
       - terraform import -input=false aws_api_gateway_resource.test1resource1 5254ae0y7j/aoo8y0
