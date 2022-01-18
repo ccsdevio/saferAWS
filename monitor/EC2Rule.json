@@ -1,9 +1,7 @@
 {
-  "source": ["aws.config"],
+  "source": ["aws.ec2"],
+  "detail-type": ["EC2 Instance State-change Notification"],
   "detail": {
-    "configurationItem": {
-      "configurationItemStatus": ["ResourceDiscovered"],
-      "resourceType": ["AWS::EC2::Instance"]
-    }
+    "state": ["running"]
   }
 }
