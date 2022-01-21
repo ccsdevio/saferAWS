@@ -2,6 +2,7 @@ import json
 import boto3
 import os
 
+
 # Note that DDB and SNS are in our home region (and IAM is global)
 DDBClient = boto3.resource('dynamodb', region_name='us-east-1')
 table = DDBClient.Table('saferAWSAttackCounter')
@@ -21,58 +22,60 @@ def killall(region):
 
     res = ec2Response['Reservations']
 
-    if res:
-        # Get the list of non-terminated instances
-        for r in ec2Response['Reservations']:
-            for i in r['Instances']:
-                s = i['State']
-                n = s['Name']
-                if n != 'terminated':
-                    instances.append(i['InstanceId'])
+    # if res:
+    #     # Get the list of non-terminated instances
+    #     for r in ec2Response['Reservations']:
+    #         for i in r['Instances']:
+    #             s = i['State']
+    #             n = s['Name']
+    #             if n != 'terminated':
+    #                 instances.append(i['InstanceId'])
 
-        if instances:
-            print("Instances found:\n", instances)
+    #     if instances:
+    #         print("Instances found:\n", instances)
 
-            # Make sure that termination protection is off.
-            print("Disabling termination protection: ")
-            for i in instances:
-                ec2Response = ec2Client.modify_instance_attribute(
-                    InstanceId=i,
-                    DisableApiTermination={
-                        'Value': False
-                    })
-                print(ec2Response['ResponseMetadata']['HTTPStatusCode'])
+    #         # Make sure that termination protection is off.
+    #         print("Disabling termination protection: ")
+    #         for i in instances:
+    #             ec2Response = ec2Client.modify_instance_attribute(
+    #                 InstanceId=i,
+    #                 DisableApiTermination={
+    #                     'Value': False
+    #                 })
+    #             print(ec2Response['ResponseMetadata']['HTTPStatusCode'])
 
-            # Kill the instances
-            print("Terminating instances: ")
-            ec2Response = ec2Client.terminate_instances(
-                InstanceIds=instances,
-            )
-            print(ec2Response['TerminatingInstances'])
-        else:
-            print("Only terminated EC2s found.")
+    #         # Kill the instances
+    #         print("Terminating instances: ")
+    #         ec2Response = ec2Client.terminate_instances(
+    #             InstanceIds=instances,
+    #         )
+    #         print(ec2Response['TerminatingInstances'])
+    #     else:
+    #         print("Only terminated EC2s found.")
 
-    else:
-        print("No EC2s found.")
+    # else:
+    #     print("No EC2s found.")
 
     # Lambda section
 
-    lambdaResponse = lambdaClient.list_functions()
+    lambda_response = lambdaClient.list_functions()
     functions = []
 
-    if lambdaResponse['Functions']:
+    if lambda_response['Functions']:
 
         # Get the list of Lambdas
-        for l in lambdaResponse['Functions']:
+        for l in lambda_response['Functions']:
             functions.append(l['FunctionName'])
 
         # Delete all lambdas
         print("Lambdas found:\n", functions)
         print("Deleting all Lambda functions: ")
         for f in functions:
-            lambdaResponse = lambdaClient.delete_function(
-                FunctionName=f)
-            print(f, ":", lambdaResponse['ResponseMetadata']['HTTPStatusCode'])
+            lambda_response = lambdaClient.delete_function(
+                FunctionName=f
+            )
+            print(
+                f, ":", lambda_response['ResponseMetadata']['HTTPStatusCode'])
 
     else:
         print("No lambdas found.")
@@ -91,9 +94,10 @@ def killall(region):
         keys = access_keys_list['AccessKeyMetadata']
         if keys:
             for key in keys:
+                access_key = key['AccessKeyId']
                 iam_client.delete_access_key(
                     UserName=user_name,
-                    AccessKeyId=key
+                    AccessKeyId=access_key
                 )
                 print("Access key deleted:")
                 print("User:", user_name)
@@ -155,8 +159,13 @@ def alert(arn, msg):
 def lambda_handler(event, context):
 
     region = event.get('region')
-    killall(region)
-    increment_counter_and_determine_alert(region)
+    if region == 'us-east-1':
+        print("Home region resources will not be deleted automatically.")
+        print("To delete resources in home region, change code by hand.")
+
+    else:
+        killall(region)
+        increment_counter_and_determine_alert(region)
     return {
         'statusCode': 200,
         'body': json.dumps('killall-and-alert ran successfully, see logs for details.')
