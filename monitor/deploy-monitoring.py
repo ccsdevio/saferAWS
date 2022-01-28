@@ -21,16 +21,72 @@ def deploy_logs(region):
     lg_exists = False
     logs_client = boto3.client('logs', region_name=region)
     lg_list = logs_client.describe_log_groups()
+    lg_names = []
     lgs = lg_list['logGroups']
     for lg in lgs:
-        lg_exists = (lg['logGroupName'] == 'log-all-unauthorized-activity')
-    if lg_exists:
+        lg_names.append(lg['logGroupName'])
+    if '/aws/events/log-all-unauthorized-activity' in lg_names:
+        print('yes')
         logs[region]['log_group'] = 'log_group_exists'
+        describe_resource_policies = logs_client.describe_resource_policies()
+        logs[region]['log_resource_policy'] = ''
+        for resource in describe_resource_policies['resourcePolicies']:
+            if resource['policyName'] == 'TrustEventsToStoreLogEvents':
+                logs[region]['log_resource_policy'] = 'log_resource_policy_exists'
+        # We seem to be having issues here:
+        if hasattr(logs[region], 'log_resource_policy') == False:
+            resource_policy_args = {
+                'policyName': 'TrustEventsToStoreLogEvents',
+                'policyDocument': '''{
+                    "Statement": [
+                        {
+                            "Action": [
+                                "logs:CreateLogStream",
+                                "logs:PutLogEvents"
+                            ],
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": ["events.amazonaws.com", "delivery.logs.amazonaws.com"]
+                            },
+                            "Resource": "arn:aws:logs:region:account:log-group:/aws/events/*:*",
+                            "Sid": "TrustEventsToStoreLogEvent"
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                }'''
+            }
+            put_resource_policy_response = logs_client.put_resource_policy(
+                **resource_policy_args)
+            logs[region]['http_codes']['put_resource_policy_response'] = put_resource_policy_response['ResponseMetadata']['HTTPStatusCode']
+
     else:
         create_log_group_response = logs_client.create_log_group(
-            logGroupName='log-all-unauthorized-activity'
+            logGroupName='/aws/events/log-all-unauthorized-activity'
         )
         logs[region]['http_codes']['create_log_group_response'] = create_log_group_response['ResponseMetadata']['HTTPStatusCode']
+        resource_policy_args = {
+            'policyName': 'TrustEventsToStoreLogEvents',
+            'policyDocument': '''{
+                "Statement": [
+                    {
+                        "Action": [
+                            "logs:CreateLogStream",
+                            "logs:PutLogEvents"
+                        ],
+                        "Effect": "Allow",
+                        "Principal": {
+                            "Service": ["events.amazonaws.com", "delivery.logs.amazonaws.com"]
+                        },
+                        "Resource": "arn:aws:logs:region:account:log-group:/aws/events/*:*",
+                        "Sid": "TrustEventsToStoreLogEvent"
+                    }
+                ],
+                "Version": "2012-10-17"
+            }'''
+        }
+        put_resource_policy_response = logs_client.put_resource_policy(
+            **resource_policy_args)
+        logs[region]['http_codes']['put_resource_policy_response'] = put_resource_policy_response['ResponseMetadata']['HTTPStatusCode']
 
     return logs
 
@@ -109,7 +165,7 @@ def deploy_eventbridge(region):
         },
             {
             'Id': 'log-all-unauthorized-activity',
-            'Arn': log_arn
+            'Arn': log_arn,
         }]
     }
     put_EC2_targets_response = eventbridge_client.put_targets(
@@ -136,8 +192,6 @@ def deploy_eventbridge(region):
     logs[region]['http_codes']['put_lambda_rule_response'] = put_lambda_rule_response['ResponseMetadata']['HTTPStatusCode']
 
     # Deploy the eventbridge lambda targets
-    log_arn = 'arn:aws:logs:' + region + \
-        ':502245549462:log-group:/aws/events/log-all-unauthorized-activity'
     lambda_target_args = {
         'Rule': lambda_rule_name,
         'Targets': [{
@@ -147,7 +201,7 @@ def deploy_eventbridge(region):
         },
             {
             'Id': 'log-all-unauthorized-activity',
-            'Arn': log_arn
+            'Arn': log_arn,
         }]
     }
     put_lambda_targets_response = eventbridge_client.put_targets(
@@ -218,14 +272,16 @@ def lambda_handler(event, context):
         regions.append(ind_region['RegionName'])
     regions.remove(home_region)
 
-    # Deploy in all regions but home region
-    for region in regions:
-        logs.update(deploy_monitoring(region))
-        if logs[region][region + '-deploy'] == 'failed':
-            return {
-                'statusCode': 405,
-                'body': logs
-            }
+    deploy_monitoring('eu-west-3')
+
+    # # Deploy in all regions but home region
+    # for region in regions:
+    #     logs.update(deploy_monitoring(region))
+    #     if logs[region][region + '-deploy'] == 'failed':
+    #         return {
+    #             'statusCode': 405,
+    #             'body': logs
+    #         }
 
     print(logs)
     return {
