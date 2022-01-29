@@ -3,112 +3,143 @@ import boto3
 import os
 
 
-# Note that DDB and SNS are in our home region (and IAM is global)
-DDBClient = boto3.resource('dynamodb', region_name='us-east-1')
-table = DDBClient.Table('saferAWSAttackCounter')
-SNSClient = boto3.client('sns', region_name='us-east-1')
-iam_client = boto3.client('iam')
+def killall(region, home_region, logs):
+    logs[region] = {}
+    logs[region]['ec2s'] = {}
+    logs[region]['lambdas'] = {}
+    logs[region]['users'] = {}
+    logs[region]['db'] = {}
+    logs[region]['alert'] = {}
 
-
-def killall(region):
-
-    ec2Client = boto3.client('ec2', region_name=region)
-    lambdaClient = boto3.client('lambda', region_name=region)
+    ec2_client = boto3.client('ec2', region_name=region)
+    lambda_client = boto3.client('lambda', region_name=region)
 
     # EC2 section
 
-    ec2Response = ec2Client.describe_instances()
+    ec2Response = ec2_client.describe_instances()
     instances = []
 
     res = ec2Response['Reservations']
 
-    # if res:
-    #     # Get the list of non-terminated instances
-    #     for r in ec2Response['Reservations']:
-    #         for i in r['Instances']:
-    #             s = i['State']
-    #             n = s['Name']
-    #             if n != 'terminated':
-    #                 instances.append(i['InstanceId'])
+    if res:
+        # Get the list of non-terminated instances
+        for r in ec2Response['Reservations']:
+            for i in r['Instances']:
+                s = i['State']
+                n = s['Name']
+                if n != 'terminated':
+                    instances.append(i['InstanceId'])
 
-    #     if instances:
-    #         print("Instances found:\n", instances)
+        if instances:
+            logs[region]['ec2s'].update({'instances_found': instances})
 
-    #         # Make sure that termination protection is off.
-    #         print("Disabling termination protection: ")
-    #         for i in instances:
-    #             ec2Response = ec2Client.modify_instance_attribute(
-    #                 InstanceId=i,
-    #                 DisableApiTermination={
-    #                     'Value': False
-    #                 })
-    #             print(ec2Response['ResponseMetadata']['HTTPStatusCode'])
+            # Make sure that termination protection is off
+            api_term_enabled = {}
+            ec2s_terminated = {}
+            for i in instances:
+                ec2Response = ec2_client.modify_instance_attribute(
+                    InstanceId=i,
+                    DisableApiTermination={
+                        'Value': False
+                    })
+                api_term_enabled.update(
+                    {i: ec2Response['ResponseMetadata']['HTTPStatusCode']})
+            logs[region]['ec2s'].update(
+                {'api_termination_enabled': api_term_enabled})
 
-    #         # Kill the instances
-    #         print("Terminating instances: ")
-    #         ec2Response = ec2Client.terminate_instances(
-    #             InstanceIds=instances,
-    #         )
-    #         print(ec2Response['TerminatingInstances'])
-    #     else:
-    #         print("Only terminated EC2s found.")
+            # Kill the instances
+            ec2Response = ec2_client.terminate_instances(
+                InstanceIds=instances,
+            )
+            for ti in ec2Response['TerminatingInstances']:
+                ec2s_terminated.update(
+                    {ti['InstanceId']: ti['CurrentState']['Name']})
+            logs[region]['ec2s'].update(
+                {'instances_terminated': ec2s_terminated})
 
-    # else:
-    #     print("No EC2s found.")
+        else:
+            logs[region]['ec2s'].update(
+                {'0_instances_terminated': 'only_terminated_found'})
+
+    else:
+        logs[region]['ec2s'].update({'0_instances_terminated': '0_found'})
 
     # Lambda section
 
-    lambda_response = lambdaClient.list_functions()
-    functions = []
+    lambda_response = lambda_client.list_functions()
+    functions_found = []
+    functions_deleted = []
 
     if lambda_response['Functions']:
 
         # Get the list of Lambdas
         for l in lambda_response['Functions']:
-            functions.append(l['FunctionName'])
+            functions_found.append(l['FunctionName'])
 
-        # Delete all lambdas
-        print("Lambdas found:\n", functions)
-        print("Deleting all Lambda functions: ")
-        for f in functions:
-            lambda_response = lambdaClient.delete_function(
+        # Kill the lambdas
+        logs[region]['lambdas'].update({'lambdas_found': functions_found})
+        for f in functions_found:
+            lambda_response = lambda_client.delete_function(
                 FunctionName=f
             )
-            print(
-                f, ":", lambda_response['ResponseMetadata']['HTTPStatusCode'])
+            functions_deleted.append(
+                {f: lambda_response['ResponseMetadata']['HTTPStatusCode']})
+            logs[region]['lambdas'].update(
+                {'lambdas_deleted': functions_deleted})
 
     else:
-        print("No lambdas found.")
+        logs[region]['lambdas'].update(
+            {'0_lambdas_terminated': 'no_lambdas_found'})
 
     # Delete all users' access keys and pwds
+    iam_client = boto3.client('iam')
+    users_found = []
     access_keys = []
+    access_keys_found = 0
+    access_keys_deleted = []
     users_list = iam_client.list_users()
     users = users_list['Users']
     for user in users:
-        user_name = user['UserName']
-        pwd = user['PasswordLastUsed']
-        access_keys_list = iam_client.list_access_keys(
-            UserName=user_name
+        users_found.append(user['UserName'])
+
+    # For each user, get keys and delete keys
+    for user in users_found:
+        logs[region]['users'][user] = {}
+        user_access_key_info = iam_client.list_access_keys(
+            UserName=user
         )
-        print(access_keys_list)
-        keys = access_keys_list['AccessKeyMetadata']
-        if keys:
-            for key in keys:
-                access_key = key['AccessKeyId']
-                iam_client.delete_access_key(
-                    UserName=user_name,
-                    AccessKeyId=access_key
+        for ak in user_access_key_info['AccessKeyMetadata']:
+
+            # If an access key exists for the user, delete it
+            if ak['AccessKeyId']:
+                access_keys_found += 1
+
+                key_deleted_response = iam_client.delete_access_key(
+                    UserName=user,
+                    AccessKeyId=ak['AccessKeyId']
                 )
-                print("Access key deleted:")
-                print("User:", user_name)
-                print("Key:", key)
-        else:
-            print("No access keys found for user", user_name)
+                logs[region]['users'][user].update({'key_deleted_response_' + str(
+                    access_keys_found): key_deleted_response['ResponseMetadata']['HTTPStatusCode']})
+                access_keys_deleted.append(
+                    key_deleted_response['ResponseMetadata']['HTTPStatusCode'])
+
+            else:
+                logs[region]['users'][user].update(
+                    {'0_keys_deleted': '0_keys_found'})
+
+            logs[region]['users'][user].update(
+                {'access_keys_found': access_keys_found})
+            logs[region]['users'][user].update(
+                {'access_keys_deleted': len(access_keys_deleted)})
+
+    return logs
 
 
-def increment_counter_and_determine_alert(region):
+def increment_counter_and_determine_alert(region, home_region, logs):
+    ddb_client = boto3.resource('dynamodb', region_name=home_region)
+    table = ddb_client.Table('saferAWSAttackCounter')
 
-    # increment counter
+    # currentCount = number of times we've alerted since last reset.
     query = {
         "ExpressionAttributeValues": {":q": 1},
         "Key": {"pk": "attackCount"},
@@ -116,28 +147,35 @@ def increment_counter_and_determine_alert(region):
         "ReturnValues": "UPDATED_NEW"
     }
     response = table.update_item(**query)
-    print("currentCount:", response['Attributes']['currentCount'])
+    logs[region]['db'].update(
+        {'currentCount': response['Attributes']['currentCount']})
 
     # if this is the first unauthorized activity, hit UADetected SNS topic.
     # if there has been more than one activity, hit UAContinued.
     if response['Attributes']['currentCount'] == 1:
-        print("Alerting through UnauthorizedActivityDetected topic")
+        logs[region]['alert'].update({'alert': 'UnauthorizedActivityDetected'})
         det_arn = "arn:aws:sns:us-east-1:502245549462:UnauthorizedActivityDetected"
         msg = "Unauthorized activity detected in " + region
-        alert(det_arn, msg)
+
+        alert(det_arn, msg, home_region)
+
+        return logs
 
     else:
-        print("Multiple attacks detected. Alerting through UnauthorizedActivityContinued topic.")
+        logs[region]['alert'].update(
+            {'alert': 'UnauthorizedActivityContinued'})
         cont_arn = "arn:aws:sns:us-east-1:502245549462:UnauthorizedActivityContinued"
         msg = "Multiple attacks detected in " + region
-        alert(cont_arn, msg)
+
+        alert(cont_arn, msg, home_region)
 
         # We're also going to reset the counter. If we're getting hammered, it won't
         # matter, and if not, this will keep us from forgetting:
-        reset_counter()
+        reset_counter(table)
+        return logs
 
 
-def reset_counter():
+def reset_counter(table):
     query = {
         "ExpressionAttributeValues": {":q": 0},
         "Key": {"pk": "attackCount"},
@@ -147,26 +185,52 @@ def reset_counter():
     table.update_item(**query)
 
 
-def alert(arn, msg):
-    print(msg)
+def alert(arn, msg, home_region):
+    sns_client = boto3.client('sns', region_name=home_region)
     snsMsg = {
         "TopicArn": arn,
         "Message": msg
     }
-    response = SNSClient.publish(**snsMsg)
+    response = sns_client.publish(**snsMsg)
 
 
 def lambda_handler(event, context):
 
-    region = event.get('region')
-    if region == 'us-east-1':
-        print("Home region resources will not be deleted automatically.")
-        print("To delete resources in home region, change code by hand.")
+    logs = {}
+    logs['errors'] = []
 
+    # killall will not run without a user-defined home_region
+    try:
+        home_region = os.environ['HOME_REGION']
+    except KeyError:
+        logs['errors'].append({
+            'keyerror': 'env variable HOME_REGION must be set by user, to avoid deleting resources in home region'
+        })
+        print(logs)
+        return {
+            'statusCode': 405,
+            'body': logs
+        }
+
+    region = event.get('region')
+
+    # prevent killall from running in home_region:
+    if region == home_region:
+        logs['errors'].append({
+            'usererror': 'killall was called in ' + region + ', which is set as home region. By design, killall will not run in home region'
+        })
+        print(logs)
+        return {
+            'statusCode': 405,
+            'body': logs
+        }
     else:
-        killall(region)
-        increment_counter_and_determine_alert(region)
+        logs = killall(region, home_region, logs)
+        logs = increment_counter_and_determine_alert(region, home_region, logs)
+
+        print(logs)
+
     return {
         'statusCode': 200,
-        'body': json.dumps('killall-and-alert ran successfully, see logs for details.')
+        'body': logs
     }
