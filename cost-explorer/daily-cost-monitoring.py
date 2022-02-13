@@ -57,6 +57,14 @@ def lambda_handler(event, context):
     }
 
     if float(yesterdays_costs) > float(os.environ['COST_LIMIT']):
+        '''Mitigation response goes here. By default this
+        lambda publishes to an SNS topic, which I have configured 
+        to hit PagerDuty. For personal accounts, consider
+        automatic responses such as deleting or disabling resources 
+        that you know would be the cause of these costs. You can
+        automatically investigate by breaking the cost explorer response
+        down by service; see commented code above.
+        '''
         sns_response = sns_client.publish(
             TopicArn=os.environ['ALERT_TOPIC_ARN'],
             Message=f'Billing exceeded targets. {cost_report}',
