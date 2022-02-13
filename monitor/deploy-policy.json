@@ -1,0 +1,39 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+      {
+          "Sid": "VisualEditor0",
+          "Effect": "Allow",
+          "Action": "iam:PassRole",
+          "Resource": [
+              "arn:aws:iam::502245549462:role/aws-service-role/config.amazonaws.com/AWSServiceRoleForConfig",
+              "arn:aws:iam::502245549462:role/service-role/Amazon_EventBridge_Invoke_Event_Bus_2083104951",
+              "arn:aws:iam::502245549462:role/APIGatewayLogs"
+          ]
+      },
+      {
+          "Sid": "VisualEditor1",
+          "Effect": "Allow",
+          "Action": [
+              "config:PutConfigurationRecorder",
+              "logs:DescribeLogGroups",
+              "ec2:DescribeRegions",
+              "events:PutRule",
+              "config:StartConfigurationRecorder",
+              "config:PutDeliveryChannel",
+              "logs:CreateLogGroup",
+              "config:DeleteConfigurationRecorder",
+              "events:PutTargets",
+              "cloudwatch:PutMetricAlarm",
+              "s3:GetObject",
+              "logs:PutResourcePolicy",
+              "config:DescribeConfigurationRecorders",
+              "logs:DescribeResourcePolicies"
+          ],
+          "Resource": "*"
+      }
+  ]
+}
+
+
+Also LambdaBasicExecutionPolicy
