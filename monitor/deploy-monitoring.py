@@ -15,7 +15,7 @@ def deploy_logs(region):
     logs[region] = {'region_name': region}
     logs[region]['http_codes'] = {}
 
-    # Creates the log group needed for logging if it doesn't already exist
+    # Creates the log group needed if it doesn't already exist
     logs[region]['logs'] = {}
     logs[region]['logs']['log_group'] = {}
     logs_client = boto3.client('logs', region_name=region)
@@ -159,8 +159,6 @@ def deploy_eventbridge(region):
 
     # Deploy the eventbridge lambda rule
     lambda_rule_name = "unauthorized-lambda-" + region
-    resource_name = "arn:aws:cloudwatch:" + region + ":" + \
-        "502245549462:alarm:unauthorized-lambda-" + region
     lambda_rule_args = {
         'Name': lambda_rule_name,
         'EventPattern': '''{

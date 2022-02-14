@@ -15,20 +15,19 @@
           "Sid": "VisualEditor1",
           "Effect": "Allow",
           "Action": [
+              "config:DeleteConfigurationRecorder",
+              "config:DescribeConfigurationRecorders",
               "config:PutConfigurationRecorder",
-              "logs:DescribeLogGroups",
+              "config:PutDeliveryChannel",
+              "config:StartConfigurationRecorder",
               "ec2:DescribeRegions",
               "events:PutRule",
-              "config:StartConfigurationRecorder",
-              "config:PutDeliveryChannel",
-              "logs:CreateLogGroup",
-              "config:DeleteConfigurationRecorder",
               "events:PutTargets",
-              "cloudwatch:PutMetricAlarm",
-              "s3:GetObject",
+              "logs:DescribeLogGroups",
+              "logs:CreateLogGroup",
               "logs:PutResourcePolicy",
-              "config:DescribeConfigurationRecorders",
-              "logs:DescribeResourcePolicies"
+              "logs:DescribeResourcePolicies",
+              "s3:GetObject"
           ],
           "Resource": "*"
       }
