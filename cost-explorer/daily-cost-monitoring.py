@@ -4,7 +4,6 @@ total AWS account costs, and if the total costs are
 greater than the env var COST_LIMIT, alerts via pagerduty
 to ALERT_TOPIC_.
 
-Email chris@ccsdev.io with any questions.
 '''
 
 import json
