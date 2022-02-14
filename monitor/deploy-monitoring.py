@@ -35,6 +35,7 @@ def deploy_logs(region):
                                 "Service": ["events.amazonaws.com", "delivery.logs.amazonaws.com"]
                             },
                             "Resource": '''
+
     policy_doc = policy_doc + '\"' + resource_arn + '\"' + ''',
                             "Sid": "TrustEventsToStoreLogEvent"
                         }
@@ -57,7 +58,6 @@ def deploy_logs(region):
         for resource in describe_resource_policies['resourcePolicies']:
             if resource['policyName'] == 'TrustEventsToStoreLogEvents':
                 logs[region]['logs']['log_resource_policy'] = 'log_resource_policy_exists'
-        # We seem to be having issues here:
         if hasattr(logs[region]['logs'], 'log_resource_policy') == False:
             put_resource_policy_response = logs_client.put_resource_policy(
                 **resource_policy_args)
@@ -195,13 +195,10 @@ def deploy_eventbridge(region):
 
 
 def deploy_monitoring(region):
-
-    # Deploy the cloudwatch log group:
     logs = deploy_logs(region)
 
     # Deploy the config recorder:
     logs[region]['config'] = {}
-
     config_client = boto3.client('config', region_name=region)
     config_list_response = config_client.describe_configuration_recorders()
     # If our recorder already exists, log it and do nothing
