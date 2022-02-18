@@ -1,6 +1,6 @@
 # saferAWS
 
-Free AWS stacks to help prevent surprise AWS bills for personal projects. This project has two parts:
+Free AWS stacks to help prevent surprise AWS bills for personal projects. This project has three parts:
 
 ## monitor
 An always-almost-free AWS stack for personal accounts that monitors unused regions for unauthorized EC2 or Lambda creation. Upon detection, it first mitigates: deletes all functions and instances, and deletes all users' AWS keys. If more unauthorized use is
