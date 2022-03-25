@@ -47,10 +47,8 @@ def deploy_logs(region):
     for lg in lgs:
         lg_names.append(lg['logGroupName'])
     if '/aws/events/log-all-unauthorized-activity' in lg_names:
-        print('yes')
         logs[region]['logs']['log_group'] = 'log_group_exists'
         describe_resource_policies = logs_client.describe_resource_policies()
-        print(describe_resource_policies)
         logs[region]['logs']['log_resource_policy'] = ''
         for resource in describe_resource_policies['resourcePolicies']:
             if resource['policyName'] == 'TrustEventsToStoreLogEvents':
@@ -82,7 +80,7 @@ def deploy_config(region, config_client):
     config_args = {
         'ConfigurationRecorder': {
             'name': 'config-recorder',
-            'roleARN': 'arn:aws:iam::502245549462:role/aws-service-role/config.amazonaws.com/AWSServiceRoleForConfig',
+            'roleARN': f"arn:aws:iam::{os.environ['ACCOUNT']}:role/aws-service-role/config.amazonaws.com/AWSServiceRoleForConfig",
             'recordingGroup': {
                 'allSupported': False,
                 'resourceTypes': [
@@ -91,15 +89,14 @@ def deploy_config(region, config_client):
             }
         }
     }
-    put_config_response = config_client.put_configuration_recorder(
-        **config_args)
+    put_config_response = config_client.put_configuration_recorder(**config_args)
     logs[region]['http_codes']['put_config_response'] = put_config_response['ResponseMetadata']['HTTPStatusCode']
 
     # Install the delivery channel
     put_delivery_channel_response = config_client.put_delivery_channel(
         DeliveryChannel={
             'name': 'default',
-            's3BucketName': 'config-bucket-502245549462',
+            's3BucketName': f"config-bucket-{os.environ['ACCOUNT']}",
             'configSnapshotDeliveryProperties': {
                 'deliveryFrequency': 'TwentyFour_Hours'
             }
@@ -137,13 +134,13 @@ def deploy_eventbridge(region):
     logs[region]['http_codes']['put_EC2_rule_response'] = put_EC2_rule_response['ResponseMetadata']['HTTPStatusCode']
 
     # Deploy the eventbridge EC2 targets
-    log_arn = f"arn:aws:logs:{region}:502245549462:log-group:/aws/events/log-all-unauthorized-activity"
+    log_arn = f"arn:aws:logs:{region}:{os.environ['ACCOUNT']}:log-group:/aws/events/log-all-unauthorized-activity"
     EC2_target_args = {
         'Rule': EC2_rule_name,
         'Targets': [{
             'Id': 'unauthorized-activity-rule',
-            'Arn': 'arn:aws:events:us-east-1:502245549462:event-bus/unauthorized-activity',
-            'RoleArn': 'arn:aws:iam::502245549462:role/service-role/Amazon_EventBridge_Invoke_Event_Bus_2083104951'
+            'Arn': f"arn:aws:events:us-east-1:{os.environ['ACCOUNT']}:event-bus/unauthorized-activity",
+            'RoleArn': f"arn:aws:iam::{os.environ['ACCOUNT']}:role/service-role/Amazon_EventBridge_Invoke_Event_Bus_2083104951"
         },
             {
             'Id': 'log-all-unauthorized-activity',
@@ -156,7 +153,7 @@ def deploy_eventbridge(region):
 
     # Deploy the eventbridge lambda rule
     lambda_rule_name = f"unauthorized-lambda-{region}"
-    resource_name = f"arn:aws:cloudwatch:{region}:502245549462:alarm:unauthorized-lambda-{region}"
+    resource_name = f"arn:aws:cloudwatch:{region}:{os.environ['ACCOUNT']}:alarm:unauthorized-lambda-{region}"
     lambda_rule_args = {
         'Name': lambda_rule_name,
         'EventPattern': '''{
@@ -177,8 +174,8 @@ def deploy_eventbridge(region):
         'Rule': lambda_rule_name,
         'Targets': [{
             'Id': 'unauthorized-activity-rule',
-            'Arn': 'arn:aws:events:us-east-1:502245549462:event-bus/unauthorized-activity',
-            'RoleArn': 'arn:aws:iam::502245549462:role/service-role/Amazon_EventBridge_Invoke_Event_Bus_2083104951'
+            'Arn': f"arn:aws:events:us-east-1:{os.environ['ACCOUNT']}:event-bus/unauthorized-activity",
+            'RoleArn': f"arn:aws:iam::{os.environ['ACCOUNT']}:role/service-role/Amazon_EventBridge_Invoke_Event_Bus_2083104951"
         },
             {
             'Id': 'log-all-unauthorized-activity',
@@ -252,7 +249,6 @@ def lambda_handler(event, context):
     for ind_region in region_entries:
         regions.append(ind_region['RegionName'])
     regions.remove(home_region)
-
 
     # Deploy in all regions but home region
     for region in regions:
