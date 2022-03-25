@@ -1,3 +1,9 @@
+# Please note: this lambda is designed to destroy infrastructure. I
+# have commented out the killall method, and I *strongly recommend*
+# running it for a while (a couple months if it's a business) just as a
+# monitoring tool. I have never pushed a line of code to production
+# and you should have a commensurate level of trust in my code. Enjoy!
+
 import boto3
 import os
 
@@ -224,7 +230,12 @@ def lambda_handler(event, context):
             'body': logs
         }
     else:
-        logs = killall(region, home_region, logs)
+        # By default this is set to run without the killall method.
+        # Only uncomment this method call once you've run the lambda
+        # for a good while in your environment (a couple months minimum
+        # if you're running production code for a business)
+
+        # logs = killall(region, home_region, logs)
         logs = increment_counter_and_determine_alert(region, home_region, logs)
 
         print(logs)
