@@ -1,4 +1,3 @@
-import json
 import boto3
 import os
 
@@ -15,14 +14,13 @@ def deploy_logs(region):
     logs[region] = {'region_name': region}
     logs[region]['http_codes'] = {}
 
-    # Creates the log group needed if it doesn't already exist
+    # Creates the log group needed for logging if it doesn't already exist
     logs[region]['logs'] = {}
     logs[region]['logs']['log_group'] = {}
     logs_client = boto3.client('logs', region_name=region)
     lg_list = logs_client.describe_log_groups()
     lg_names = []
-    resource_arn = 'arn:aws:logs:' + region + ':' + \
-        os.environ['ACCOUNT'] + ':log-group:/aws/events/*:*'
+    resource_arn = f"arn:aws:logs:{region}:{os.environ['ACCOUNT']}:log-group:/aws/events/*:*"
     policy_doc = '''{
                     "Statement": [
                         {
@@ -35,7 +33,6 @@ def deploy_logs(region):
                                 "Service": ["events.amazonaws.com", "delivery.logs.amazonaws.com"]
                             },
                             "Resource": '''
-
     policy_doc = policy_doc + '\"' + resource_arn + '\"' + ''',
                             "Sid": "TrustEventsToStoreLogEvent"
                         }
@@ -58,6 +55,7 @@ def deploy_logs(region):
         for resource in describe_resource_policies['resourcePolicies']:
             if resource['policyName'] == 'TrustEventsToStoreLogEvents':
                 logs[region]['logs']['log_resource_policy'] = 'log_resource_policy_exists'
+        # We seem to be having issues here:
         if hasattr(logs[region]['logs'], 'log_resource_policy') == False:
             put_resource_policy_response = logs_client.put_resource_policy(
                 **resource_policy_args)
@@ -124,7 +122,7 @@ def deploy_eventbridge(region):
 
     # Deploy the eventbridge EC2 rule
     eventbridge_client = boto3.client('events', region_name=region)
-    EC2_rule_name = "unauthorized-EC2-" + region
+    EC2_rule_name = f"unauthorized-EC2-{region}"
     EC2_rule_args = {
         'Name': EC2_rule_name,
         'EventPattern': '''{
@@ -139,8 +137,7 @@ def deploy_eventbridge(region):
     logs[region]['http_codes']['put_EC2_rule_response'] = put_EC2_rule_response['ResponseMetadata']['HTTPStatusCode']
 
     # Deploy the eventbridge EC2 targets
-    log_arn = 'arn:aws:logs:' + region + \
-        ':502245549462:log-group:/aws/events/log-all-unauthorized-activity'
+    log_arn = f"arn:aws:logs:{region}:502245549462:log-group:/aws/events/log-all-unauthorized-activity"
     EC2_target_args = {
         'Rule': EC2_rule_name,
         'Targets': [{
@@ -158,7 +155,8 @@ def deploy_eventbridge(region):
     logs[region]['http_codes']['put_EC2_targets_response'] = put_EC2_targets_response['ResponseMetadata']['HTTPStatusCode']
 
     # Deploy the eventbridge lambda rule
-    lambda_rule_name = "unauthorized-lambda-" + region
+    lambda_rule_name = f"unauthorized-lambda-{region}"
+    resource_name = f"arn:aws:cloudwatch:{region}:502245549462:alarm:unauthorized-lambda-{region}"
     lambda_rule_args = {
         'Name': lambda_rule_name,
         'EventPattern': '''{
@@ -195,10 +193,13 @@ def deploy_eventbridge(region):
 
 
 def deploy_monitoring(region):
+
+    # Deploy the cloudwatch log group:
     logs = deploy_logs(region)
 
     # Deploy the config recorder:
     logs[region]['config'] = {}
+
     config_client = boto3.client('config', region_name=region)
     config_list_response = config_client.describe_configuration_recorders()
     # If our recorder already exists, log it and do nothing
@@ -219,12 +220,12 @@ def deploy_monitoring(region):
     deploy_eventbridge(region)
 
     # Set the success message, and change it to fail if any response codes for operations were not 2xx:
-    logs[region].update({region + '-deploy': 'succeeded'})
+    logs[region].update({f"{region}-deploy": "succeeded"})
 
     for msg in logs[region]['http_codes']:
         code = logs[region]['http_codes'][msg]
         if code < 200 or code > 299:
-            logs[region][region + '-deploy'] = 'failed'
+            logs[region][f"{region}-deploy"] = 'failed'
             print(logs[region])
             return logs[region]
 
@@ -252,10 +253,11 @@ def lambda_handler(event, context):
         regions.append(ind_region['RegionName'])
     regions.remove(home_region)
 
+
     # Deploy in all regions but home region
     for region in regions:
         logs.update(deploy_monitoring(region))
-        if logs[region][region + '-deploy'] == 'failed':
+        if logs[region][f"{region}-deploy"] == 'failed':
             return {
                 'statusCode': 405,
                 'body': logs
