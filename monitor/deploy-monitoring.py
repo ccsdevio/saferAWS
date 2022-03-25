@@ -1,3 +1,9 @@
+'''
+This lambda deploys a small monitoring stack to each region that listens for
+EC2 and Lambda creation, and upon detection logs in the detected region and
+alerts to a central event bus in the home region.
+'''
+
 import boto3
 import os
 
@@ -89,7 +95,8 @@ def deploy_config(region, config_client):
             }
         }
     }
-    put_config_response = config_client.put_configuration_recorder(**config_args)
+    put_config_response = config_client.put_configuration_recorder(
+        **config_args)
     logs[region]['http_codes']['put_config_response'] = put_config_response['ResponseMetadata']['HTTPStatusCode']
 
     # Install the delivery channel
