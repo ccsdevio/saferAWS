@@ -59,7 +59,6 @@ def deploy_logs(region):
         for resource in describe_resource_policies['resourcePolicies']:
             if resource['policyName'] == 'TrustEventsToStoreLogEvents':
                 logs[region]['logs']['log_resource_policy'] = 'log_resource_policy_exists'
-        # We seem to be having issues here:
         if hasattr(logs[region]['logs'], 'log_resource_policy') == False:
             put_resource_policy_response = logs_client.put_resource_policy(
                 **resource_policy_args)
